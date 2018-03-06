@@ -466,6 +466,34 @@ func MedianBlur(src Mat, dst Mat, ksize int) {
 	C.MedianBlur(src.p, dst.p, C.int(ksize))
 }
 
+// Integral calculates the integral of an image.
+//
+// For further details, please see:
+// https://docs.opencv.org/3.4.0/d7/d1b/group__imgproc__misc.html#gadeaf38d7701d7ad371278d663c50c77d
+//
+func Integral(src Mat, sum Mat, sDepth int) {
+	C.Integral(src.p, sum.p, C.int(sDepth))
+}
+
+// IntegralSquareSum is an overloaded function which calculates the integral of an image as well as squared integral.
+//
+// For further details, please see:
+// https://docs.opencv.org/3.4.0/d7/d1b/group__imgproc__misc.html#gadeaf38d7701d7ad371278d663c50c77d
+//
+func IntegralSquaredSum(src Mat, sum Mat, sqSum Mat, sDepth int, sqDepth int) {
+	C.IntegralSquaredSum(src.p, sum.p, sqSum.p, C.int(sDepth), C.int(sqDepth))
+}
+
+// IntegralTiltedSum is an overloaded function which calculates the integral of an image,
+// squared integral and integral of a 45 degree rotated image.
+//
+// For further details, please see:
+// https://docs.opencv.org/3.4.0/d7/d1b/group__imgproc__misc.html#gadeaf38d7701d7ad371278d663c50c77d
+//
+func IntegralTiltedSum(src Mat, sum Mat, sqSum Mat, titledSum Mat, sDepth int, sqDepth int) {
+	C.IntegralTiltedSum(src.p, sum.p, sqSum.p, titledSum.p, C.int(sDepth), C.int(sqDepth))
+}
+
 // Canny finds edges in an image using the Canny algorithm.
 // The function finds edges in the input image image and marks
 // them in the output map edges using the Canny algorithm.

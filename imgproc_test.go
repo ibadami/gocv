@@ -336,6 +336,96 @@ func TestMedianBlur(t *testing.T) {
 	}
 }
 
+func TestIntegral(t *testing.T) {
+	img := IMRead("images/face-detect.jpg", IMReadColor)
+	if img.Empty() {
+		t.Error("Invalid read of Mat in Integral test")
+	}
+	defer img.Close()
+
+	dest := NewMat()
+	defer dest.Close()
+
+	Integral(img, dest,-1)
+	if dest.Empty() {
+		t.Error("invalid integral test: destination is empty")
+	}
+	if img.Rows() != dest.Rows()-1 || img.Cols() != dest.Cols()-1 {
+		t.Errorf("Invalid Integral test: dest has wrong rows and cols %d, %d. It should be %d, %d",
+			dest.Rows(), dest.Cols(), img.Rows()+1, img.Rows()+1)
+	}
+}
+
+func TestIntegralSquaredSum(t *testing.T) {
+	img := IMRead("images/face-detect.jpg", IMReadColor)
+	if img.Empty() {
+		t.Error("Invalid read of Mat in IntegralSquaredSum test")
+	}
+	defer img.Close()
+
+	dest := NewMat()
+	defer dest.Close()
+
+	sqDest := NewMat()
+	defer sqDest.Close()
+
+	IntegralSquaredSum(img, dest, sqDest, -1, -1)
+	if dest.Empty() {
+		t.Error("invalid integralSquaredSum test: destn is empty")
+	}
+	if sqDest.Empty() {
+		t.Error("invalid integralSquaredSum test:  sqDest is empty")
+	}
+	if img.Rows() != dest.Rows()-1 || img.Cols() != dest.Cols()-1 {
+		t.Errorf("Invalid IntegralSquaredSum test: dest has wrong rows and cols %d, %d. It should be %d, %d",
+			dest.Rows(), dest.Cols(), img.Rows()+1, img.Rows()+1)
+	}
+
+	if img.Rows() != sqDest.Rows()-1 || img.Cols() != sqDest.Cols()-1 {
+		t.Errorf("Invalid IntegralSquaredSum test: sqDest has wrong rows and cols %d, %d. It should be %d, %d",
+			sqDest.Rows(), sqDest.Cols(), img.Rows()+1, img.Rows()+1)
+	}
+}
+
+func TestIntegralTiltedSum(t *testing.T) {
+	img := IMRead("images/face-detect.jpg", IMReadColor)
+	if img.Empty() {
+		t.Error("Invalid read of Mat in IntegralTiltedSum test")
+	}
+	defer img.Close()
+
+	dest := NewMat()
+	defer dest.Close()
+
+	sqDest := NewMat()
+	defer sqDest.Close()
+
+	tiltedDest := NewMat()
+	defer tiltedDest.Close()
+
+	IntegralTiltedSum(img, dest, sqDest, tiltedDest, -1, -1)
+	if dest.Empty() {
+		t.Error("invalid integralTiltedSum test: destn is empty")
+	}
+	if sqDest.Empty() {
+		t.Error("invalid integralTiltedSum test:  sqDest is empty")
+	}
+	if img.Rows() != dest.Rows()-1 || img.Cols() != dest.Cols()-1 {
+		t.Errorf("Invalid IntegralTiltedSum test: dest has wrong rows and cols %d, %d. It should be %d, %d",
+			dest.Rows(), dest.Cols(), img.Rows()+1, img.Rows()+1)
+	}
+
+	if img.Rows() != sqDest.Rows()-1 || img.Cols() != sqDest.Cols()-1 {
+		t.Errorf("Invalid IntegralTiltedSum test: sqDest has wrong rows and cols %d, %d. It should be %d, %d",
+			sqDest.Rows(), sqDest.Cols(), img.Rows()+1, img.Rows()+1)
+	}
+
+	if img.Rows() != tiltedDest.Rows()-1 || img.Cols() != tiltedDest.Cols()-1 {
+		t.Errorf("Invalid IntegralTiltedSum test: tiltedDest has wrong rows and cols %d, %d. It should be %d, %d",
+			tiltedDest.Rows(), tiltedDest.Cols(), img.Rows()+1, img.Rows()+1)
+	}
+}
+
 func TestCanny(t *testing.T) {
 	img := IMRead("images/face-detect.jpg", IMReadGrayScale)
 	if img.Empty() {
