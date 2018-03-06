@@ -29,6 +29,24 @@ void CvtColor(Mat src, Mat dst, int code) {
     cv::cvtColor(*src, *dst, code);
 }
 
+void ConvexHull(Contour points, Mat hull, bool clockwise, bool returnPoints) {
+    std::vector<cv::Point> pts;
+    for (size_t i = 0; i < points.length; i++) {
+        pts.push_back(cv::Point(points.points[i].x, points.points[i].y));
+    }
+
+    cv::convexHull(pts, *hull, clockwise, returnPoints);
+}
+
+void ConvexityDefects(Contour points, Mat hull, Mat result) {
+    std::vector<cv::Point> pts;
+    for (size_t i = 0; i < points.length; i++) {
+        pts.push_back(cv::Point(points.points[i].x, points.points[i].y));
+    }
+
+    cv::convexityDefects(pts, *hull, *result);
+}
+
 void BilateralFilter(Mat src, Mat dst, int d, double sc, double ss) {
     cv::bilateralFilter(*src, *dst, d, sc, ss);
 }
@@ -56,6 +74,16 @@ struct Moment Moments(Mat src, bool binaryImage) {
         m.mu20, m.mu11, m.mu02, m.mu30, m.mu21, m.mu12, m.mu03,
         m.nu20, m.nu11, m.nu02, m.nu30, m.nu21, m.nu12, m.nu03};
     return mom;
+}
+
+void PyrDown(Mat src, Mat dst, Size size, int borderType) {
+    cv::Size cvSize(size.width, size.height);
+    cv::pyrDown(*src, *dst, cvSize, borderType);
+}
+
+void PyrUp(Mat src, Mat dst, Size size, int borderType) {
+    cv::Size cvSize(size.width, size.height);
+    cv::pyrUp(*src, *dst, cvSize, borderType);
 }
 
 struct Rect BoundingRect(Contour con) {
@@ -150,6 +178,10 @@ void Threshold(Mat src, Mat dst, double thresh, double maxvalue, int typ) {
     cv::threshold(*src, *dst, thresh, maxvalue, typ);
 }
 
+void AdaptiveThreshold(Mat src, Mat dst, double maxValue, int adaptiveMethod, int thresholdType, int blockSize, double c) {
+    cv::adaptiveThreshold(*src, *dst, maxValue, adaptiveMethod, thresholdType, blockSize, c);
+}
+
 void ArrowedLine(Mat img, Point pt1, Point pt2, Scalar color, int thickness) {
     cv::Point p1(pt1.x, pt1.y);
     cv::Point p2(pt2.x, pt2.y);
@@ -213,10 +245,45 @@ void WarpAffineWithParams(Mat src, Mat dst, Mat rot_mat, Size dsize, int flags, 
   cv::warpAffine(*src, *dst, *rot_mat, sz, flags, borderMode, c);
 }
 
+void WarpPerspective(Mat src, Mat dst, Mat m, Size dsize) {
+  cv::Size sz(dsize.width, dsize.height);
+  cv::warpPerspective(*src, *dst, *m, sz);
+}
+
 void ApplyColorMap(Mat src, Mat dst, int colormap) {
   cv::applyColorMap(*src, *dst, colormap);
 }
 
 void ApplyCustomColorMap(Mat src, Mat dst, Mat colormap) {
   cv::applyColorMap(*src, *dst, *colormap);
+}
+
+Mat GetPerspectiveTransform(Contour src, Contour dst) {
+  std::vector<cv::Point2f> src_pts;
+  for (size_t i = 0; i < src.length; i++) {
+    src_pts.push_back(cv::Point2f(src.points[i].x, src.points[i].y));
+  }
+  std::vector<cv::Point2f> dst_pts;
+  for (size_t i = 0; i < dst.length; i++) {
+    dst_pts.push_back(cv::Point2f(dst.points[i].x, dst.points[i].y));
+  }
+
+  return new cv::Mat(cv::getPerspectiveTransform(src_pts, dst_pts));
+}
+
+void DrawContours(Mat src, Contours contours, int contourIdx, Scalar color, int thickness) {
+  std::vector<std::vector<cv::Point> > cntrs;
+  for (size_t i = 0; i < contours.length; i++) {
+    Contour contour = contours.contours[i];
+
+    std::vector<cv::Point> cntr;
+    for (size_t i = 0; i < contour.length; i++) {
+      cntr.push_back(cv::Point(contour.points[i].x, contour.points[i].y));
+    }
+
+    cntrs.push_back(cntr);
+  }
+
+  cv::Scalar c = cv::Scalar(color.val1, color.val2, color.val3, color.val4);
+  cv::drawContours(*src, cntrs, contourIdx, c, thickness);
 }

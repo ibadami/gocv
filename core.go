@@ -7,6 +7,8 @@ package gocv
 import "C"
 import (
 	"image"
+	"image/color"
+	"reflect"
 	"unsafe"
 )
 
@@ -62,13 +64,35 @@ const (
 	MatTypeCV8UC4 = MatTypeCV8U + MatChannels4
 )
 
+type CompareType int
+
+const (
+	// CompareEQ src1 is equal to src2.
+	CompareEQ CompareType = 0
+
+	// CompareGT src1 is greater than src2.
+	CompareGT = 1
+
+	// CompareGE src1 is greater than or equal to src2.
+	CompareGE = 2
+
+	// CompareLT src1 is less than src2.
+	CompareLT = 3
+
+	// CompareLE src1 is less than or equal to src2.
+	CompareLE = 4
+
+	// CompareNE src1 is unequal to src2.
+	CompareNE = 5
+)
+
 // Mat represents an n-dimensional dense numerical single-channel
 // or multi-channel array. It can be used to store real or complex-valued
 // vectors and matrices, grayscale or color images, voxel volumes,
 // vector fields, point clouds, tensors, and histograms.
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html
+// http://docs.opencv.org/master/d3/d63/classcv_1_1Mat.html
 //
 type Mat struct {
 	p C.Mat
@@ -127,17 +151,27 @@ func (m *Mat) Clone() Mat {
 // CopyTo copies Mat into destination Mat.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#a33fd5d125b4c302b0c9aa86980791a77
+// https://docs.opencv.org/master/d3/d63/classcv_1_1Mat.html#a33fd5d125b4c302b0c9aa86980791a77
 //
 func (m *Mat) CopyTo(dst Mat) {
 	C.Mat_CopyTo(m.p, dst.p)
 	return
 }
 
+// CopyToWithMask copies Mat into destination Mat after applying the mask Mat.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d3/d63/classcv_1_1Mat.html#a626fe5f96d02525e2604d2ad46dd574f
+//
+func (m *Mat) CopyToWithMask(dst Mat, mask Mat) {
+	C.Mat_CopyToWithMask(m.p, dst.p, mask.p)
+	return
+}
+
 // ConvertTo converts Mat into destination Mat.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#adf88c60c5b4980e05bb556080916978b
+// https://docs.opencv.org/master/d3/d63/classcv_1_1Mat.html#adf88c60c5b4980e05bb556080916978b
 //
 func (m *Mat) ConvertTo(dst Mat, mt MatType) {
 	C.Mat_ConvertTo(m.p, dst.p, C.int(mt))
@@ -171,7 +205,7 @@ func (m *Mat) Region(rio image.Rectangle) Mat {
 // Reshape changes the shape and/or the number of channels of a 2D matrix without copying the data.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d3/d63/classcv_1_1Mat.html#a4eb96e3251417fa88b78e2abd6cfd7d8
+// https://docs.opencv.org/master/d3/d63/classcv_1_1Mat.html#a4eb96e3251417fa88b78e2abd6cfd7d8
 //
 func (m *Mat) Reshape(cn int, rows int) Mat {
 	return Mat{p: C.Mat_Reshape(m.p, C.int(cn), C.int(rows))}
@@ -180,7 +214,7 @@ func (m *Mat) Reshape(cn int, rows int) Mat {
 // ConvertFp16 converts a Mat to half-precision floating point.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga9c25d9ef44a2a48ecc3774b30cb80082
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga9c25d9ef44a2a48ecc3774b30cb80082
 //
 func (m *Mat) ConvertFp16() Mat {
 	return Mat{p: C.Mat_ConvertFp16(m.p)}
@@ -193,13 +227,23 @@ func (m *Mat) Mean() Scalar {
 	return NewScalar(float64(s.val1), float64(s.val2), float64(s.val3), float64(s.val4))
 }
 
+// Sum calculates the per-channel pixel sum of an image.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga716e10a2dd9e228e4d3c95818f106722
+//
+func (m *Mat) Sum() Scalar {
+	s := C.Mat_Sum(m.p)
+	return NewScalar(float64(s.val1), float64(s.val2), float64(s.val3), float64(s.val4))
+}
+
 // LUT performs a look-up table transform of an array.
 //
 // The function LUT fills the output array with values from the look-up table.
 // Indices of the entries are taken from the input array.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#gab55b8d062b7f5587720ede032d34156f
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gab55b8d062b7f5587720ede032d34156f
 func LUT(src, wbLUT, dst Mat) {
 	C.LUT(src.p, wbLUT.p, dst.p)
 }
@@ -224,83 +268,155 @@ func (m *Mat) Type() int {
 	return int(C.Mat_Type(m.p))
 }
 
-// GetUCharAt returns a value from a specific row/col in this Mat expecting it to
-// be of type uchar aka CV_8U.
-func (m *Mat) GetUCharAt(row int, col int) int8 {
-	return int8(C.Mat_GetUChar(m.p, C.int(row), C.int(col)))
+// GetUCharAt returns a value from a specific row/col
+// in this Mat expecting it to be of type uchar aka CV_8U.
+func (m *Mat) GetUCharAt(row int, col int) uint8 {
+	return uint8(C.Mat_GetUChar(m.p, C.int(row), C.int(col)))
 }
 
-// GetSCharAt returns a value from a specific row/col in this Mat expecting it to
-// be of type schar aka CV_8S.
+// GetUCharAt3 returns a value from a specific x, y, z coordinate location
+// in this Mat expecting it to be of type uchar aka CV_8U.
+func (m *Mat) GetUCharAt3(x, y, z int) uint8 {
+	return uint8(C.Mat_GetUChar3(m.p, C.int(x), C.int(y), C.int(z)))
+}
+
+// GetSCharAt returns a value from a specific row/col
+// in this Mat expecting it to be of type schar aka CV_8S.
 func (m *Mat) GetSCharAt(row int, col int) int8 {
 	return int8(C.Mat_GetSChar(m.p, C.int(row), C.int(col)))
 }
 
-// GetShortAt returns a value from a specific row/col in this Mat expecting it to
-// be of type short aka CV_16S.
+// GetSCharAt3 returns a value from a specific x, y, z coordinate location
+// in this Mat expecting it to be of type schar aka CV_8S.
+func (m *Mat) GetSCharAt3(x, y, z int) int8 {
+	return int8(C.Mat_GetSChar3(m.p, C.int(x), C.int(y), C.int(z)))
+}
+
+// GetShortAt returns a value from a specific row/col
+// in this Mat expecting it to be of type short aka CV_16S.
 func (m *Mat) GetShortAt(row int, col int) int16 {
 	return int16(C.Mat_GetShort(m.p, C.int(row), C.int(col)))
 }
 
-// GetIntAt returns a value from a specific row/col in this Mat expecting it to
-// be of type int aka CV_32S.
+// GetShortAt3 returns a value from a specific x, y, z coordinate location
+// in this Mat expecting it to be of type short aka CV_16S.
+func (m *Mat) GetShortAt3(x, y, z int) int16 {
+	return int16(C.Mat_GetShort3(m.p, C.int(x), C.int(y), C.int(z)))
+}
+
+// GetIntAt returns a value from a specific row/col
+// in this Mat expecting it to be of type int aka CV_32S.
 func (m *Mat) GetIntAt(row int, col int) int32 {
 	return int32(C.Mat_GetInt(m.p, C.int(row), C.int(col)))
 }
 
-// GetFloatAt returns a value from a specific row/col in this Mat expecting it to
-// be of type float aka CV_32F.
+// GetIntAt3 returns a value from a specific x, y, z coordinate location
+// in this Mat expecting it to be of type int aka CV_32S.
+func (m *Mat) GetIntAt3(x, y, z int) int32 {
+	return int32(C.Mat_GetInt3(m.p, C.int(x), C.int(y), C.int(z)))
+}
+
+// GetFloatAt returns a value from a specific row/col
+// in this Mat expecting it to be of type float aka CV_32F.
 func (m *Mat) GetFloatAt(row int, col int) float32 {
 	return float32(C.Mat_GetFloat(m.p, C.int(row), C.int(col)))
 }
 
-// GetDoubleAt returns a value from a specific row/col in this Mat expecting it to
-// be of type double aka CV_64F.
+// GetFloatAt3 returns a value from a specific x, y, z coordinate location
+// in this Mat expecting it to be of type float aka CV_32F.
+func (m *Mat) GetFloatAt3(x, y, z int) float32 {
+	return float32(C.Mat_GetFloat3(m.p, C.int(x), C.int(y), C.int(z)))
+}
+
+// GetDoubleAt returns a value from a specific row/col
+// in this Mat expecting it to be of type double aka CV_64F.
 func (m *Mat) GetDoubleAt(row int, col int) float64 {
 	return float64(C.Mat_GetDouble(m.p, C.int(row), C.int(col)))
 }
 
-// SetUCharAt set a value from a specific row/col in this Mat expecting it to
-// be of type uchar aka CV_8U.
-func (m *Mat) SetUCharAt(row int, col int, val int8) {
+// GetDoubleAt3 returns a value from a specific x, y, z coordinate location
+// in this Mat expecting it to be of type double aka CV_64F.
+func (m *Mat) GetDoubleAt3(x, y, z int) float64 {
+	return float64(C.Mat_GetDouble3(m.p, C.int(x), C.int(y), C.int(z)))
+}
+
+// SetUCharAt sets a value at a specific row/col
+// in this Mat expecting it to be of type uchar aka CV_8U.
+func (m *Mat) SetUCharAt(row int, col int, val uint8) {
 	C.Mat_SetUChar(m.p, C.int(row), C.int(col), C.uint8_t(val))
 }
 
-// SetSCharAt set a value from a specific row/col in this Mat expecting it to
-// be of type schar aka CV_8S.
+// SetUCharAt3 sets a value at a specific x, y, z coordinate location
+// in this Mat expecting it to be of type uchar aka CV_8U.
+func (m *Mat) SetUCharAt3(x, y, z int, val uint8) {
+	C.Mat_SetUChar3(m.p, C.int(x), C.int(y), C.int(z), C.uint8_t(val))
+}
+
+// SetSCharAt sets a value at a specific row/col
+// in this Mat expecting it to be of type schar aka CV_8S.
 func (m *Mat) SetSCharAt(row int, col int, val int8) {
 	C.Mat_SetSChar(m.p, C.int(row), C.int(col), C.int8_t(val))
 }
 
-// SetShortAt set a value from a specific row/col in this Mat expecting it to
-// be of type short aka CV_16S.
+// SetSCharAt3 sets a value at a specific x, y, z coordinate location
+// in this Mat expecting it to be of type schar aka CV_8S.
+func (m *Mat) SetSCharAt3(x, y, z int, val int8) {
+	C.Mat_SetSChar3(m.p, C.int(x), C.int(y), C.int(z), C.int8_t(val))
+}
+
+// SetShortAt sets a value at a specific row/col
+// in this Mat expecting it to be of type short aka CV_16S.
 func (m *Mat) SetShortAt(row int, col int, val int16) {
 	C.Mat_SetShort(m.p, C.int(row), C.int(col), C.int16_t(val))
 }
 
-// SetIntAt set a value from a specific row/col in this Mat expecting it to
-// be of type int aka CV_32S.
+// SetShortAt3 sets a value at a specific x, y, z coordinate location
+// in this Mat expecting it to be of type short aka CV_16S.
+func (m *Mat) SetShortAt3(x, y, z int, val int16) {
+	C.Mat_SetShort3(m.p, C.int(x), C.int(y), C.int(z), C.int16_t(val))
+}
+
+// SetIntAt sets a value at a specific row/col
+// in this Mat expecting it to be of type int aka CV_32S.
 func (m *Mat) SetIntAt(row int, col int, val int32) {
 	C.Mat_SetInt(m.p, C.int(row), C.int(col), C.int32_t(val))
 }
 
-// SetFloatAt set a value from a specific row/col in this Mat expecting it to
-// be of type float aka CV_32F.
+// SetIntAt3 sets a value at a specific x, y, z coordinate location
+// in this Mat expecting it to be of type int aka CV_32S.
+func (m *Mat) SetIntAt3(x, y, z int, val int32) {
+	C.Mat_SetInt3(m.p, C.int(x), C.int(y), C.int(z), C.int32_t(val))
+}
+
+// SetFloatAt sets a value at a specific row/col
+// in this Mat expecting it to be of type float aka CV_32F.
 func (m *Mat) SetFloatAt(row int, col int, val float32) {
 	C.Mat_SetFloat(m.p, C.int(row), C.int(col), C.float(val))
 }
 
-// SetDoubleAt set a value from a specific row/col in this Mat expecting it to
-// be of type double aka CV_64F.
+// SetFloatAt3 sets a value at a specific x, y, z coordinate location
+// in this Mat expecting it to be of type float aka CV_32F.
+func (m *Mat) SetFloatAt3(x, y, z int, val float32) {
+	C.Mat_SetFloat3(m.p, C.int(x), C.int(y), C.int(z), C.float(val))
+}
+
+// SetDoubleAt sets a value at a specific row/col
+// in this Mat expecting it to be of type double aka CV_64F.
 func (m *Mat) SetDoubleAt(row int, col int, val float64) {
 	C.Mat_SetDouble(m.p, C.int(row), C.int(col), C.double(val))
+}
+
+// SetDoubleAt3 sets a value at a specific x, y, z coordinate location
+// in this Mat expecting it to be of type double aka CV_64F.
+func (m *Mat) SetDoubleAt3(x, y, z int, val float64) {
+	C.Mat_SetDouble3(m.p, C.int(x), C.int(y), C.int(z), C.double(val))
 }
 
 // AbsDiff calculates the per-element absolute difference between two arrays
 // or between an array and a scalar.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga6fef31bc8c4071cbc114a758a2b79c14
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga6fef31bc8c4071cbc114a758a2b79c14
 //
 func AbsDiff(src1 Mat, src2 Mat, dst Mat) {
 	C.Mat_AbsDiff(src1.p, src2.p, dst.p)
@@ -309,7 +425,7 @@ func AbsDiff(src1 Mat, src2 Mat, dst Mat) {
 // Add calculates the per-element sum of two arrays or an array and a scalar.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga10ac1bfb180e2cfda1701d06c24fdbd6
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga10ac1bfb180e2cfda1701d06c24fdbd6
 //
 func Add(src1 Mat, src2 Mat, dst Mat) {
 	C.Mat_Add(src1.p, src2.p, dst.p)
@@ -318,7 +434,7 @@ func Add(src1 Mat, src2 Mat, dst Mat) {
 // AddWeighted calculates the weighted sum of two arrays.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#gafafb2513349db3bcff51f54ee5592a19
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gafafb2513349db3bcff51f54ee5592a19
 //
 func AddWeighted(src1 Mat, alpha float64, src2 Mat, beta float64, gamma float64, dst Mat) {
 	C.Mat_AddWeighted(src1.p, C.double(alpha),
@@ -330,7 +446,7 @@ func AddWeighted(src1 Mat, alpha float64, src2 Mat, beta float64, gamma float64,
 // or an array and a scalar.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga60b4d04b251ba5eb1392c34425497e14
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga60b4d04b251ba5eb1392c34425497e14
 //
 func BitwiseAnd(src1 Mat, src2 Mat, dst Mat) {
 	C.Mat_BitwiseAnd(src1.p, src2.p, dst.p)
@@ -339,7 +455,7 @@ func BitwiseAnd(src1 Mat, src2 Mat, dst Mat) {
 // BitwiseNot inverts every bit of an array.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga0002cf8b418479f4cb49a75442baee2f
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga0002cf8b418479f4cb49a75442baee2f
 //
 func BitwiseNot(src1 Mat, dst Mat) {
 	C.Mat_BitwiseNot(src1.p, dst.p)
@@ -349,7 +465,7 @@ func BitwiseNot(src1 Mat, dst Mat) {
 // or an array and a scalar.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#gab85523db362a4e26ff0c703793a719b4
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gab85523db362a4e26ff0c703793a719b4
 //
 func BitwiseOr(src1 Mat, src2 Mat, dst Mat) {
 	C.Mat_BitwiseOr(src1.p, src2.p, dst.p)
@@ -359,45 +475,252 @@ func BitwiseOr(src1 Mat, src2 Mat, dst Mat) {
 // on two arrays or an array and a scalar.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga84b2d8188ce506593dcc3f8cd00e8e2c
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga84b2d8188ce506593dcc3f8cd00e8e2c
 //
 func BitwiseXor(src1 Mat, src2 Mat, dst Mat) {
 	C.Mat_BitwiseXor(src1.p, src2.p, dst.p)
 }
 
-// InRange checks if array elements lie between the elements of two Mat arrays.
+// BatchDistance naive nearest neighbor finder
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga48af0ab51e36436c5d04340e036ce981
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga4ba778a1c57f83233b1d851c83f5a622
 //
-func InRange(src Mat, lb Mat, ub Mat, dst Mat) {
-	C.Mat_InRange(src.p, lb.p, ub.p, dst.p)
+func BatchDistance(src1 Mat, src2 Mat, dist Mat, dtype int, nidx Mat, normType int, K int, mask Mat, update int, crosscheck bool) {
+	C.Mat_BatchDistance(src1.p, src2.p, dist.p, C.int(dtype), nidx.p, C.int(normType), C.int(K), mask.p, C.int(update), C.bool(crosscheck))
 }
 
-// GetOptimalDFTSize returns the optimal Discrete Fourier Transform (DFT) size
-// for a given vector size.
+// BorderInterpolate Computes the source location of an extrapolated pixel.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga6577a2e59968936ae02eb2edde5de299
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga247f571aa6244827d3d798f13892da58
 //
-func GetOptimalDFTSize(vecsize int) int {
-	return int(C.Mat_GetOptimalDFTSize(C.int(vecsize)))
+func BorderInterpolate(p int, len int, borderType CovarFlags) int {
+	ret := C.Mat_BorderInterpolate(C.int(p), C.int(len), C.int(borderType))
+	return int(ret)
+}
+
+// Covariation flags
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d0/de1/group__core.html#ga719ebd4a73f30f4fab258ab7616d0f0f
+type CovarFlags int
+
+const (
+	CovarScrambled CovarFlags = 0
+
+	CovarNormal = 1
+
+	CovarUseAvg = 2
+
+	CovarScale = 4
+
+	CovarRows = 8
+
+	CovarCols = 16
+)
+
+// CalcCovarMatrix Calculates the covariance matrix of a set of vectors.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga017122d912af19d7d0d2cccc2d63819f
+//
+func CalcCovarMatrix(samples Mat, covar Mat, mean Mat, flags int, ctype int) {
+	C.Mat_CalcCovarMatrix(samples.p, covar.p, mean.p, C.int(flags), C.int(ctype))
+}
+
+// CartToPolar Calculates the magnitude and angle of 2D vectors.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gac5f92f48ec32cacf5275969c33ee837d
+//
+func CartToPolar(x Mat, y Mat, magnitude Mat, angle Mat, angleInDegrees bool) {
+	C.Mat_CartToPolar(x.p, y.p, magnitude.p, angle.p, C.bool(angleInDegrees))
+}
+
+// Compare performs the per-element comparison of two arrays
+// or an array and scalar value.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga303cfb72acf8cbb36d884650c09a3a97
+//
+func Compare(src1 Mat, src2 Mat, dst Mat, ct CompareType) {
+	C.Mat_Compare(src1.p, src2.p, dst.p, C.int(ct))
+}
+
+// CountNonZero counts non-zero array elements.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gaa4b89393263bb4d604e0fe5986723914
+//
+func CountNonZero(src Mat) int {
+	return int(C.Mat_CountNonZero(src.p))
+}
+
+// CompleteSymm copies the lower or the upper half of a square matrix to its another half.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gaa9d88dcd0e54b6d1af38d41f2a3e3d25
+//
+func CompleteSymm(m Mat, lowerToUpper bool) {
+	C.Mat_CompleteSymm(m.p, C.bool(lowerToUpper))
+}
+
+// ConvertScaleAbs scales, calculates absolute values, and converts the result to 8-bit.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga3460e9c9f37b563ab9dd550c4d8c4e7d
+//
+func ConvertScaleAbs(src Mat, dst Mat, alpha float64, beta float64) {
+	C.Mat_ConvertScaleAbs(src.p, dst.p, C.double(alpha), C.double(beta))
+}
+
+// CopyMakeBorder forms a border around an image (applies padding).
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga2ac1049c2c3dd25c2b41bffe17658a36
+//
+func CopyMakeBorder(src Mat, dst Mat, top int, bottom int, left int, right int, borderType int, value color.RGBA) {
+
+	cValue := C.struct_Scalar{
+		val1: C.double(value.B),
+		val2: C.double(value.G),
+		val3: C.double(value.R),
+		val4: C.double(value.A),
+	}
+
+	C.Mat_CopyMakeBorder(src.p, dst.p, C.int(top), C.int(bottom), C.int(left), C.int(right), C.int(borderType), cValue)
+}
+
+//
+// Dft / Dct related flags.
+//
+// for full description, see here:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gaf4dde112b483b38175621befedda1f1c
+//
+type DftFlags int
+
+const (
+	// perform forward 1D or 2D dft or dct
+	DftForward DftFlags = 0
+
+	// performs an inverse 1D or 2D transform
+	DftInverse = 1
+
+	// scales the result: divide it by the number of array elements. Normally, it is combined with DFT_INVERSE.
+	DftScale = 2
+
+	// performs a forward or inverse transform of every individual row of the input matrix
+	DftRows = 4
+
+	// performs a forward transformation of 1D or 2D real array; the result, though being a complex array, has complex-conjugate symmetry
+	DftComplexOutput = 16
+
+	// performs an inverse transformation of a 1D or 2D complex array; the result is normally a complex array of the same size,
+	// however, if the input array has conjugate-complex symmetry (for example, it is a result of forward transformation with DFT_COMPLEX_OUTPUT flag),
+	// the output is a real array
+	DftRealOutput = 32
+
+	// specifies that input is complex input. If this flag is set, the input must have 2 channels
+	DftComplexInput = 64
+
+	// performs an inverse 1D or 2D dct transform
+	DctInverse = DftInverse
+
+	// performs a forward or inverse dct transform of every individual row of the input matrix
+	DctRows = DftRows
+)
+
+// DCT Performs a forward or inverse discrete Cosine transform of 1D or 2D array.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga85aad4d668c01fbd64825f589e3696d4
+//
+func DCT(src Mat, dst Mat, flags DftFlags) {
+	C.Mat_DCT(src.p, dst.p, C.int(flags))
 }
 
 // DFT performs a forward or inverse Discrete Fourier Transform (DFT)
 // of a 1D or 2D floating-point array.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#gadd6cf9baf2b8b704a11b5f04aaf4f39d
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gadd6cf9baf2b8b704a11b5f04aaf4f39d
 //
-func DFT(src Mat, dst Mat) {
-	C.Mat_DFT(src.p, dst.p)
+func DFT(src Mat, dst Mat, flags DftFlags) {
+	C.Mat_DFT(src.p, dst.p, C.int(flags))
+}
+
+// Divide performs the per-element division
+// on two arrays or an array and a scalar.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga6db555d30115642fedae0cda05604874
+//
+func Divide(src1 Mat, src2 Mat, dst Mat) {
+	C.Mat_Divide(src1.p, src2.p, dst.p)
+}
+
+// Eigen Calculates eigenvalues and eigenvectors of a symmetric matrix.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga9fa0d58657f60eaa6c71f6fbb40456e3
+//
+
+func Eigen(src Mat, eigenvalues Mat, eigenvectors Mat) bool {
+	ret := C.Mat_Eigen(src.p, eigenvalues.p, eigenvectors.p)
+	return bool(ret)
+}
+
+// Exp Calculates the exponent of every array element.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga3e10108e2162c338f1b848af619f39e5
+//
+func Exp(src Mat, dst Mat) {
+	C.Mat_Exp(src.p, dst.p)
+}
+
+// ExtractChannel Extracts a single channel from src (coi is 0-based index)
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gacc6158574aa1f0281878c955bcf35642
+//
+func ExtractChannel(src Mat, dst Mat, coi int) {
+	C.Mat_ExtractChannel(src.p, dst.p, C.int(coi))
+}
+
+// GetOptimalDFTSize returns the optimal Discrete Fourier Transform (DFT) size
+// for a given vector size.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga6577a2e59968936ae02eb2edde5de299
+//
+func GetOptimalDFTSize(vecsize int) int {
+	return int(C.Mat_GetOptimalDFTSize(C.int(vecsize)))
+}
+
+// InRange checks if array elements lie between the elements of two Mat arrays.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga48af0ab51e36436c5d04340e036ce981
+//
+func InRange(src Mat, lb Mat, ub Mat, dst Mat) {
+	C.Mat_InRange(src.p, lb.p, ub.p, dst.p)
+}
+
+// Calculates a mean and standard deviation of array elements.
+//
+// For further details, please see:
+// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga846c858f4004d59493d7c6a4354b301d
+//
+func MeanStdDev(src Mat, dst Mat, dstStdDev Mat) {
+	C.Mat_MeanStdDev(src.p, dst.p, dstStdDev.p)
 }
 
 // Merge creates one multi-channel array out of several single-channel ones.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga7d7b4d6c6ee504b30a20b1680029c7b4
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga7d7b4d6c6ee504b30a20b1680029c7b4
 //
 func Merge(mv []Mat, dst Mat) {
 	cMatArray := make([]C.Mat, len(mv))
@@ -431,10 +754,20 @@ func MinMaxLoc(input Mat) (minVal, maxVal float32, minLoc, maxLoc image.Point) {
 	return float32(cMinVal), float32(cMaxVal), minLoc, maxLoc
 }
 
+// Multiply performs the per-element multiplication
+// on two arrays or an array and a scalar.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga979d898a58d7f61c53003e162e7ad89f
+//
+func Multiply(src1 Mat, src2 Mat, dst Mat) {
+	C.Mat_Multiply(src1.p, src2.p, dst.p)
+}
+
 // NormType for normalization operations.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#gad12cefbcb5291cf958a85b4b67b6149f
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gad12cefbcb5291cf958a85b4b67b6149f
 //
 type NormType int
 
@@ -470,7 +803,7 @@ const (
 // Normalize normalizes the norm or value range of an array.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga87eef7ee3970f86906d69a92cbf064bd
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga87eef7ee3970f86906d69a92cbf064bd
 //
 func Normalize(src Mat, dst Mat, alpha float64, beta float64, typ NormType) {
 	C.Mat_Normalize(src.p, dst.p, C.double(alpha), C.double(beta), C.int(typ))
@@ -479,7 +812,7 @@ func Normalize(src Mat, dst Mat, alpha float64, beta float64, typ NormType) {
 // Norm calculates the absolute norm of an array.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#ga7c331fb8dd951707e184ef4e3f21dd33
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga7c331fb8dd951707e184ef4e3f21dd33
 //
 func Norm(src1 Mat, normType NormType) float64 {
 	return float64(C.Norm(src1.p, C.int(normType)))
@@ -488,7 +821,7 @@ func Norm(src1 Mat, normType NormType) float64 {
 // TermCriteriaType for TermCriteria.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d9/d5d/classcv_1_1TermCriteria.html#a56fecdc291ccaba8aad27d67ccf72c57
+// https://docs.opencv.org/master/d9/d5d/classcv_1_1TermCriteria.html#a56fecdc291ccaba8aad27d67ccf72c57
 //
 type TermCriteriaType int
 
@@ -504,10 +837,43 @@ const (
 	EPS = 2
 )
 
+// Split creates an array of single channel images from a multi-channel image
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#ga0547c7fed86152d7e9d0096029c8518a
+//
+func Split(src Mat) (mv []Mat) {
+	cMats := C.struct_Mats{}
+	C.Mat_Split(src.p, &(cMats))
+	mv = make([]Mat, cMats.length)
+	for i := C.int(0); i < cMats.length; i++ {
+		mv[i].p = C.Mats_get(cMats, i)
+	}
+	return
+}
+
+// Subtract calculates the per-element subtraction of two arrays or an array and a scalar.
+//
+// For further details, please see:
+// https://docs.opencv.org/master/d2/de8/group__core__array.html#gaa0f00d98b4b5edeaeb7b8333b2de353b
+//
+func Subtract(src1 Mat, src2 Mat, dst Mat) {
+	C.Mat_Subtract(src1.p, src2.p, dst.p)
+}
+
+// Pow raises every array element to a power.
+//
+// For further details, please see:
+// https://docs.opencv.org/3.4.0/d2/de8/group__core__array.html#gaf0d056b5bd1dc92500d6f6cf6bac41ef
+//
+func Pow(src Mat, power float64, dst Mat) {
+	C.Mat_Pow(src.p, C.double(power), dst.p)
+}
+
 // TermCriteria is the criteria for iterative algorithms.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d9/d5d/classcv_1_1TermCriteria.html
+// https://docs.opencv.org/master/d9/d5d/classcv_1_1TermCriteria.html
 //
 type TermCriteria struct {
 	p C.TermCriteria
@@ -521,7 +887,7 @@ func NewTermCriteria(typ TermCriteriaType, maxCount int, epsilon float64) TermCr
 // Scalar is a 4-element vector widely used in OpenCV to pass pixel values.
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/d1/da0/classcv_1_1Scalar__.html
+// http://docs.opencv.org/master/d1/da0/classcv_1_1Scalar__.html
 //
 type Scalar struct {
 	Val1 float64
@@ -539,7 +905,7 @@ func NewScalar(v1 float64, v2 float64, v3 float64, v4 float64) Scalar {
 // KeyPoint is data structure for salient point detectors.
 //
 // For further details, please see:
-// https://docs.opencv.org/3.4.0/d2/d29/classcv_1_1KeyPoint.html
+// https://docs.opencv.org/master/d2/d29/classcv_1_1KeyPoint.html
 //
 type KeyPoint struct {
 	X, Y                  float64
@@ -556,4 +922,36 @@ func toByteArray(b []byte) C.struct_ByteArray {
 
 func toGoBytes(b C.struct_ByteArray) []byte {
 	return C.GoBytes(unsafe.Pointer(b.data), b.length)
+}
+
+func toRectangles(ret C.Rects) []image.Rectangle {
+	cArray := ret.rects
+	length := int(ret.length)
+	hdr := reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(cArray)),
+		Len:  length,
+		Cap:  length,
+	}
+	s := *(*[]C.Rect)(unsafe.Pointer(&hdr))
+
+	rects := make([]image.Rectangle, length)
+	for i, r := range s {
+		rects[i] = image.Rect(int(r.x), int(r.y), int(r.x+r.width), int(r.y+r.height))
+	}
+	return rects
+}
+
+func toCPoints(points []image.Point) C.struct_Points {
+	cPointSlice := make([]C.struct_Point, len(points))
+	for i, point := range points {
+		cPointSlice[i] = C.struct_Point{
+			x: C.int(point.X),
+			y: C.int(point.Y),
+		}
+	}
+
+	return C.struct_Points{
+		points: (*C.Point)(&cPointSlice[0]),
+		length: C.int(len(points)),
+	}
 }
