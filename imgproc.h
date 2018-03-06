@@ -32,6 +32,9 @@ void Scharr(Mat src, Mat dst, int dDepth, int dx, int dy, double scale, double d
 Mat GetStructuringElement(int shape, Size ksize);
 void MorphologyEx(Mat src, Mat dst, int op, Mat kernel);
 void MedianBlur(Mat src, Mat dst, int ksize);
+void Integral(Mat src, Mat sum, int sDepth);
+void IntegralSquaredSum(Mat src, Mat sum, Mat sqSum, int sDepth, int sqDepth);
+void IntegralTiltedSum(Mat src, Mat sum, Mat sqSum, Mat tiltedSum, int sDepth, int sqDepth);
 
 void Canny(Mat src, Mat edges, double t1, double t2);
 void CornerSubPix(Mat img, Mat corners, Size winSize, Size zeroZone, TermCriteria criteria);
