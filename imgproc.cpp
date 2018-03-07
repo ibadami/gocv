@@ -148,6 +148,18 @@ void MedianBlur(Mat src, Mat dst, int ksize) {
     cv::medianBlur(*src, *dst, ksize);
 }
 
+void Integral(Mat src, Mat sum, int sDepth){
+    cv::integral(*src, *sum, sDepth);
+}
+
+void IntegralSquaredSum(Mat src, Mat sum, Mat sqSum, int sDepth, int sqDepth){
+    cv::integral(*src, *sum, *sqSum, sDepth, sqDepth);
+}
+
+void IntegralTiltedSum(Mat src, Mat sum, Mat sqSum, Mat tiltedSum, int sDepth, int sqDepth){
+    cv::integral(*src, *sum, *sqSum, *tiltedSum, sDepth, sqDepth);
+}
+
 void Canny(Mat src, Mat edges, double t1, double t2) {
     cv::Canny(*src, *edges, t1, t2);
 }
