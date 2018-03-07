@@ -6,6 +6,12 @@ Mat Mat_New() {
     return new cv::Mat();
 }
 
+// Mat_Scalar creates a new Mat with given values, dimension and channels
+Mat Mat_NewWithScalar(int rows, int cols, int type, Scalar ar){
+    cv::Scalar c = cv::Scalar(ar.val1, ar.val2, ar.val3, ar.val4);
+    return new cv::Mat(rows, cols, type, c);
+}
+
 // Mat_NewWithSize creates a new Mat with a specific size dimension and number of channels.
 Mat Mat_NewWithSize(int rows, int cols, int type) {
     return new cv::Mat(rows, cols, type, 0.0);

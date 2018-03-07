@@ -103,6 +103,17 @@ func NewMat() Mat {
 	return Mat{p: C.Mat_New()}
 }
 
+// NewMatWithScalar returns a new Mat with a specific size and type and all values initialised as given scalar value.
+func NewMatWithScalar(rows int, cols int, mt MatType, s Scalar ) Mat {
+	sVal := C.struct_Scalar{
+		val1: C.double(s.Val1),
+		val2: C.double(s.Val2),
+		val3: C.double(s.Val3),
+		val4: C.double(s.Val4),
+	}
+	return Mat{p: C.Mat_NewWithScalar(C.int(rows), C.int(cols), C.int(mt), sVal)}
+}
+
 // NewMatWithSize returns a new Mat with a specific size and type.
 func NewMatWithSize(rows int, cols int, mt MatType) Mat {
 	return Mat{p: C.Mat_NewWithSize(C.int(rows), C.int(cols), C.int(mt))}
