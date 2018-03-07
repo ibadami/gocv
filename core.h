@@ -154,6 +154,7 @@ void Point_Close(struct Point p);
 void Points_Close(struct Points ps);
 
 Mat Mat_New();
+Mat Mat_NewWithScalar(int rows, int cols, int type, const Scalar);
 Mat Mat_NewWithSize(int rows, int cols, int type);
 Mat Mat_NewFromScalar(const Scalar ar, int type);
 Mat Mat_NewFromBytes(int rows, int cols, int type, struct ByteArray buf);
