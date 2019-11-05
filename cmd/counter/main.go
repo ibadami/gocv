@@ -59,8 +59,8 @@ func main() {
 
 	count := 0
 	for {
-		if ok := video.Read(img); !ok {
-			fmt.Printf("Error cannot read file %s\n", file)
+		if ok := video.Read(&img); !ok {
+			fmt.Printf("Device closed: %v\n", file)
 			return
 		}
 		if img.Empty() {
@@ -68,9 +68,9 @@ func main() {
 		}
 
 		// clean frame by removing background & eroding to eliminate artifacts
-		mog2.Apply(img, imgFG)
+		mog2.Apply(img, &imgFG)
 		kernel := gocv.GetStructuringElement(gocv.MorphRect, image.Pt(3, 3))
-		gocv.Erode(imgFG, imgCleaned, kernel)
+		gocv.Erode(imgFG, &imgCleaned, kernel)
 		kernel.Close()
 
 		// calculate the image moment based on the cleaned frame
@@ -84,17 +84,17 @@ func main() {
 				if x > 0 && x < img.Cols() && y > line && y < line+width {
 					count++
 				}
-				gocv.Line(img, image.Pt(0, line), image.Pt(img.Cols(), line), color.RGBA{255, 0, 0, 0}, 2)
+				gocv.Line(&img, image.Pt(0, line), image.Pt(img.Cols(), line), color.RGBA{255, 0, 0, 0}, 2)
 			}
 			if axis == "x" {
 				if y > 0 && y < img.Rows() && x > line && x < line+width {
 					count++
 				}
-				gocv.Line(img, image.Pt(line, 0), image.Pt(line, img.Rows()), color.RGBA{255, 0, 0, 0}, 2)
+				gocv.Line(&img, image.Pt(line, 0), image.Pt(line, img.Rows()), color.RGBA{255, 0, 0, 0}, 2)
 			}
 		}
 
-		gocv.PutText(img, fmt.Sprintf("Count: %d", count), image.Pt(10, 20),
+		gocv.PutText(&img, fmt.Sprintf("Count: %d", count), image.Pt(10, 20),
 			gocv.FontHersheyPlain, 1.2, color.RGBA{0, 255, 0, 0}, 2)
 
 		window.IMShow(img)

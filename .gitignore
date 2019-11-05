@@ -6,3 +6,5 @@ count.out
 /prime
 /stage
 .vscode/
+/build
+.idea/

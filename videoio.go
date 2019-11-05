@@ -6,6 +6,9 @@ package gocv
 */
 import "C"
 import (
+	"errors"
+	"fmt"
+	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -152,29 +155,36 @@ const (
 // VideoCapture is a wrapper around the OpenCV VideoCapture class.
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/d8/dfe/classcv_1_1VideoCapture.html
+// http://docs.opencv.org/master/d8/dfe/classcv_1_1VideoCapture.html
 //
 type VideoCapture struct {
 	p C.VideoCapture
 }
 
 // VideoCaptureFile opens a VideoCapture from a file and prepares
-// to start capturing.
+// to start capturing. It returns error if it fails to open the file stored in uri path.
 func VideoCaptureFile(uri string) (vc *VideoCapture, err error) {
 	vc = &VideoCapture{p: C.VideoCapture_New()}
 
 	cURI := C.CString(uri)
 	defer C.free(unsafe.Pointer(cURI))
 
-	C.VideoCapture_Open(vc.p, cURI)
+	if !C.VideoCapture_Open(vc.p, cURI) {
+		err = fmt.Errorf("Error opening file: %s", uri)
+	}
+
 	return
 }
 
 // VideoCaptureDevice opens a VideoCapture from a device and prepares
-// to start capturing.
+// to start capturing. It returns error if it fails to open the video device.
 func VideoCaptureDevice(device int) (vc *VideoCapture, err error) {
 	vc = &VideoCapture{p: C.VideoCapture_New()}
-	C.VideoCapture_OpenDevice(vc.p, C.int(device))
+
+	if !C.VideoCapture_OpenDevice(vc.p, C.int(device)) {
+		err = fmt.Errorf("Error opening device: %d", device)
+	}
+
 	return
 }
 
@@ -202,9 +212,9 @@ func (v *VideoCapture) IsOpened() bool {
 	return isOpened != 0
 }
 
-// Read read the next frame from the VideoCapture to the Mat passed in
-// as the parem. It returns false if the VideoCapture cannot read frame.
-func (v *VideoCapture) Read(m Mat) bool {
+// Read reads the next frame from the VideoCapture to the Mat passed in
+// as the param. It returns false if the VideoCapture cannot read frame.
+func (v *VideoCapture) Read(m *Mat) bool {
 	return C.VideoCapture_Read(v.p, m.p) != 0
 }
 
@@ -213,10 +223,32 @@ func (v *VideoCapture) Grab(skip int) {
 	C.VideoCapture_Grab(v.p, C.int(skip))
 }
 
+// CodecString returns a string representation of FourCC bytes, i.e. the name of a codec
+func (v *VideoCapture) CodecString() string {
+	res := ""
+	hexes := []int64{0xff, 0xff00, 0xff0000, 0xff000000}
+	for i, h := range hexes {
+		res += string(int64(v.Get(VideoCaptureFOURCC)) & h >> (uint(i * 8)))
+	}
+	return res
+}
+
+// ToCodec returns an float64 representation of FourCC bytes
+func (v *VideoCapture) ToCodec(codec string) float64 {
+	if len(codec) != 4 {
+		return -1.0
+	}
+	c1 := []rune(string(codec[0]))[0]
+	c2 := []rune(string(codec[1]))[0]
+	c3 := []rune(string(codec[2]))[0]
+	c4 := []rune(string(codec[3]))[0]
+	return float64((c1 & 255) + ((c2 & 255) << 8) + ((c3 & 255) << 16) + ((c4 & 255) << 24))
+}
+
 // VideoWriter is a wrapper around the OpenCV VideoWriter`class.
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/dd/d9e/classcv_1_1VideoWriter.html
+// http://docs.opencv.org/master/dd/d9e/classcv_1_1VideoWriter.html
 //
 type VideoWriter struct {
 	mu *sync.RWMutex
@@ -228,9 +260,15 @@ type VideoWriter struct {
 // codec, for example "MJPG".
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/dd/d9e/classcv_1_1VideoWriter.html#a0901c353cd5ea05bba455317dab81130
+// http://docs.opencv.org/master/dd/d9e/classcv_1_1VideoWriter.html#a0901c353cd5ea05bba455317dab81130
 //
-func VideoWriterFile(name string, codec string, fps float64, width int, height int) (vw *VideoWriter, err error) {
+func VideoWriterFile(name string, codec string, fps float64, width int, height int, isColor bool) (vw *VideoWriter, err error) {
+
+	if fps == 0 || width == 0 || height == 0 {
+		return nil, fmt.Errorf("one of the numerical parameters "+
+			"is equal to zero: FPS: %f, width: %d, height: %d", fps, width, height)
+	}
+
 	vw = &VideoWriter{
 		p:  C.VideoWriter_New(),
 		mu: &sync.RWMutex{},
@@ -242,7 +280,7 @@ func VideoWriterFile(name string, codec string, fps float64, width int, height i
 	cCodec := C.CString(codec)
 	defer C.free(unsafe.Pointer(cCodec))
 
-	C.VideoWriter_Open(vw.p, cName, cCodec, C.double(fps), C.int(width), C.int(height))
+	C.VideoWriter_Open(vw.p, cName, cCodec, C.double(fps), C.int(width), C.int(height), C.bool(isColor))
 	return
 }
 
@@ -256,7 +294,7 @@ func (vw *VideoWriter) Close() error {
 // IsOpened checks if the VideoWriter is open and ready to be written to.
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/dd/d9e/classcv_1_1VideoWriter.html#a9a40803e5f671968ac9efa877c984d75
+// http://docs.opencv.org/master/dd/d9e/classcv_1_1VideoWriter.html#a9a40803e5f671968ac9efa877c984d75
 //
 func (vw *VideoWriter) IsOpened() bool {
 	isOpend := C.VideoWriter_IsOpened(vw.p)
@@ -266,11 +304,29 @@ func (vw *VideoWriter) IsOpened() bool {
 // Write the next video frame from the Mat image to the open VideoWriter.
 //
 // For further details, please see:
-// http://docs.opencv.org/3.4.0/dd/d9e/classcv_1_1VideoWriter.html#a3115b679d612a6a0b5864a0c88ed4b39
+// http://docs.opencv.org/master/dd/d9e/classcv_1_1VideoWriter.html#a3115b679d612a6a0b5864a0c88ed4b39
 //
 func (vw *VideoWriter) Write(img Mat) error {
 	vw.mu.Lock()
 	defer vw.mu.Unlock()
 	C.VideoWriter_Write(vw.p, img.p)
 	return nil
+}
+
+// OpenVideoCapture return VideoCapture specified by device ID if v is a
+// number. Return VideoCapture created from video file, URL, or GStreamer
+// pipeline if v is a string.
+func OpenVideoCapture(v interface{}) (*VideoCapture, error) {
+	switch vv := v.(type) {
+	case int:
+		return VideoCaptureDevice(vv)
+	case string:
+		id, err := strconv.Atoi(vv)
+		if err == nil {
+			return VideoCaptureDevice(id)
+		}
+		return VideoCaptureFile(vv)
+	default:
+		return nil, errors.New("argument must be int or string")
+	}
 }

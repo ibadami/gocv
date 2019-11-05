@@ -1,3 +1,7 @@
+// Do not run these tests on mac OS X. They fail with errors suggesting the GUI
+// should only be touched from the main thread.
+// +build !darwin
+
 package gocv
 
 import (
@@ -54,7 +58,7 @@ func TestIMShow(t *testing.T) {
 	// TODO: some way to determine if the call succeeded
 	window.IMShow(img)
 
-	val := window.WaitKey(1)
+	val := WaitKey(1)
 	if val != -1 {
 		t.Error("Invalid for IMShow")
 	}
